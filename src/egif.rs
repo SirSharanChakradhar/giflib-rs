@@ -2,18 +2,14 @@
 
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
-use crate::alloc::*;
+use crate::gifalloc::*;
 use crate::private::*;
 use crate::types::*;
+use crate::sys::FdWriter;
+use alloc::boxed::Box;
 use core::ffi::{c_char, c_int, c_void, CStr};
 use core::mem::size_of;
 use core::ptr::null_mut;
-use std::ffi::OsStr;
-use std::fs::{File, OpenOptions};
-use std::io::BufWriter;
-use std::os::fd::FromRawFd;
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::OpenOptionsExt;
 
 const CODE_MASK: [u8; 9] = [0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff];
 const INTERLACED_OFFSET: [usize; 4] = [0, 4, 2, 1];
@@ -71,21 +67,12 @@ pub unsafe extern "C" fn EGifOpenFileName(
             set_error(Error, E_GIF_ERR_OPEN_FAILED);
             return null_mut();
         }
-        let path = OsStr::from_bytes(CStr::from_ptr(FileName).to_bytes());
-        let mut opts = OpenOptions::new();
-        opts.write(true).mode(0o600);
-        if TestExistence {
-            opts.create_new(true);
-        } else {
-            opts.create(true).truncate(true);
+        let fd = crate::sys::open_write(FileName, TestExistence);
+        if fd == -1 {
+            set_error(Error, E_GIF_ERR_OPEN_FAILED);
+            return null_mut();
         }
-        match opts.open(path) {
-            Ok(f) => open_writer(Io::WriteFile(BufWriter::new(f)), null_mut(), Error),
-            Err(_) => {
-                set_error(Error, E_GIF_ERR_OPEN_FAILED);
-                null_mut()
-            }
-        }
+        open_writer(Io::WriteFile(FdWriter::new(fd)), null_mut(), Error)
     }
 }
 
@@ -95,7 +82,7 @@ pub unsafe extern "C" fn EGifOpenFileHandle(FileHandle: c_int, Error: *mut c_int
         let io = if FileHandle < 0 {
             Io::None
         } else {
-            Io::WriteFile(BufWriter::new(File::from_raw_fd(FileHandle)))
+            Io::WriteFile(FdWriter::new(FileHandle))
         };
         open_writer(io, null_mut(), Error)
     }
@@ -500,7 +487,7 @@ pub unsafe extern "C" fn EGifCloseFile(GifFile: *mut GifFileType, ErrorCode: *mu
         let p = Box::from_raw((*GifFile).Private as *mut Private);
         let closed_ok = match p.io {
             // Flushing the buffer is where a full disk shows up (C: fclose).
-            Io::WriteFile(w) => w.into_inner().is_ok(),
+            Io::WriteFile(w) => w.close(),
             _ => true,
         };
         free(GifFile.cast());
@@ -517,7 +504,10 @@ unsafe fn write_extensions(gif: *mut GifFileType, blocks: *mut ExtensionBlock, c
     unsafe {
         let blocks = slice(blocks, count.max(0) as usize);
         for (j, ep) in blocks.iter().enumerate() {
-            if ep.Function != CONTINUE_EXT_FUNC_CODE && EGifPutExtensionLeader(gif, ep.Function) == GIF_ERROR {
+            // A leading block always gets an introducer, even if its label is 0
+            // (which upstream confuses with "continuation" and writes a corrupt file).
+            let starts_extension = ep.Function != CONTINUE_EXT_FUNC_CODE || j == 0;
+            if starts_extension && EGifPutExtensionLeader(gif, ep.Function) == GIF_ERROR {
                 return GIF_ERROR;
             }
             if EGifPutExtensionBlock(gif, ep.ByteCount, ep.Bytes.cast()) == GIF_ERROR {

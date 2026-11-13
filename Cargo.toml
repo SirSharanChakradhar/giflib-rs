@@ -15,6 +15,10 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
 
+[features]
+# Link Rust's std (for Rust test harnesses only; the C library never needs it).
+std = []
+
 [profile.release]
 # Never unwind across the C boundary.
 panic = "abort"

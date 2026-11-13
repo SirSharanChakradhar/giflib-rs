@@ -2,9 +2,10 @@
 
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
-use crate::alloc::slice_mut;
+use crate::gifalloc::slice_mut;
 use crate::font_table::GifAsciiTable8x8;
 use crate::types::*;
+use alloc::vec::Vec;
 use core::ffi::{c_char, c_int, CStr};
 
 const FONT_W: i64 = 8;

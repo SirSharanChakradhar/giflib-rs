@@ -2,7 +2,7 @@
 
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
-use crate::alloc::{malloc, slice, slice_mut};
+use crate::gifalloc::{malloc, slice, slice_mut};
 use crate::lzw::HashTable;
 use core::ffi::c_int;
 
