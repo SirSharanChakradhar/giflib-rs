@@ -1,0 +1,25 @@
+[package]
+name = "giflib-rs"
+version = "0.1.0"
+edition = "2024"
+description = "A memory-safe, drop-in replacement for giflib (libgif.so.7) written in Rust"
+license = "MIT"
+readme = "README.md"
+keywords = ["gif", "giflib", "image", "ffi", "memory-safety"]
+categories = ["multimedia::images", "external-ffi-bindings"]
+
+[lib]
+# Produces libgif.so / libgif.a so existing C programs link against it unchanged.
+name = "gif"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+
+[profile.release]
+# Never unwind across the C boundary.
+panic = "abort"
+lto = true
+codegen-units = 1
+
+[profile.dev]
+panic = "abort"
