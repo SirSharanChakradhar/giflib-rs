@@ -5,6 +5,8 @@
 //! that output is bit-identical, but every table access is bounds-checked.
 
 use crate::types::*;
+use alloc::boxed::Box;
+use alloc::vec;
 use core::ffi::c_int;
 
 pub const LZ_MAX_CODE: usize = 4095;

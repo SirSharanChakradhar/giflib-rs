@@ -5,8 +5,9 @@
 
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
-use crate::alloc::{slice, slice_mut};
+use crate::gifalloc::{slice, slice_mut};
 use crate::types::*;
+use alloc::vec::Vec;
 use core::ffi::{c_int, c_uint};
 
 const COLOR_ARRAY_SIZE: usize = 32768;

@@ -2,18 +2,14 @@
 
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
-use crate::alloc::*;
+use crate::gifalloc::*;
 use crate::lzw::{ByteSource, KEEP_ERROR, LzwResult};
 use crate::private::*;
 use crate::types::*;
-use core::ffi::{c_char, c_int, c_void, CStr};
+use alloc::boxed::Box;
+use core::ffi::{c_char, c_int, c_void};
 use core::mem::size_of;
 use core::ptr::{self, null_mut};
-use std::ffi::OsStr;
-use std::fs::File;
-use std::io::BufReader;
-use std::os::fd::{FromRawFd, IntoRawFd};
-use std::os::unix::ffi::OsStrExt;
 
 const INTERLACED_OFFSET: [usize; 4] = [0, 4, 2, 1];
 const INTERLACED_JUMPS: [usize; 4] = [8, 8, 4, 2];
@@ -107,14 +103,12 @@ pub unsafe extern "C" fn DGifOpenFileName(FileName: *const c_char, Error: *mut c
             set_error(Error, D_GIF_ERR_OPEN_FAILED);
             return null_mut();
         }
-        let path = OsStr::from_bytes(CStr::from_ptr(FileName).to_bytes());
-        match File::open(path) {
-            Ok(f) => DGifOpenFileHandle(f.into_raw_fd(), Error),
-            Err(_) => {
-                set_error(Error, D_GIF_ERR_OPEN_FAILED);
-                null_mut()
-            }
+        let fd = crate::sys::open_read(FileName);
+        if fd == -1 {
+            set_error(Error, D_GIF_ERR_OPEN_FAILED);
+            return null_mut();
         }
+        DGifOpenFileHandle(fd, Error)
     }
 }
 
@@ -126,8 +120,7 @@ pub unsafe extern "C" fn DGifOpenFileHandle(FileHandle: c_int, Error: *mut c_int
             return null_mut();
         }
         // We now own the descriptor; it is closed by DGifCloseFile or on failure.
-        let file = File::from_raw_fd(FileHandle);
-        open_reader(Io::ReadFile(BufReader::new(file)), null_mut(), Error, false)
+        open_reader(Io::ReadFile(crate::sys::FdReader::new(FileHandle)), null_mut(), Error, false)
     }
 }
 
