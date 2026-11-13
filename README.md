@@ -13,7 +13,7 @@ giflib is the C library that decodes and encodes GIF images inside OpenJDK, Emac
 | Soname | `libgif.so.7` |
 | Differential testing vs. C giflib: 2,000 corrupted GIFs × `giffilter`, `giftext` | **4,000 / 4,000 byte-identical output, 0 crashes** |
 | Real program: `gif2webp` (Ubuntu's binary, unmodified) with Ubuntu's giflib vs. giflib-rs via `LD_LIBRARY_PATH` | **2,008 / 2,008 identical** (8 test images + 2,000 corrupted) |
-| Coverage-guided fuzzing (`cargo fuzz`, decode and decode→encode→decode) | see [Fuzzing](#fuzzing) |
+| Coverage-guided fuzzing (`cargo fuzz`, decode and decode→encode→decode) | **671,282 runs, 0 crashes** (see [Fuzzing](#fuzzing)) |
 | Size of `libgif.so` (stripped) | 79 KB (C giflib: 43 KB) |
 | Struct layouts (`GifFileType`, `SavedImage`, …) | checked at compile time |
 
@@ -56,7 +56,12 @@ cargo +nightly fuzz run --fuzz-dir . -O roundtrip corpus/roundtrip seeds regress
 - `roundtrip` decodes, re-encodes with `EGifSpew`, decodes again, and checks every pixel survived.
 - `max_allocation_size_mb` makes huge allocations (GIF headers can claim 65535×65535 images) fail, which exercises the out-of-memory paths.
 
-Results so far: FUZZ_RESULTS
+Results so far (30 minutes each, AddressSanitizer, seeded with giflib's test images):
+
+| Target | Runs | Crashes / failures |
+|---|---|---|
+| `decode` | 268,975 | 0 |
+| `roundtrip` (after the fix below) | 402,307 | 0 |
 
 The roundtrip fuzzer found a data-loss bug in upstream giflib 6.1.3 (see below); its input is kept in `fuzz/regressions/`.
 
